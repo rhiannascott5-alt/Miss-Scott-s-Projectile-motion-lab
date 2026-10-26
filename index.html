@@ -1,0 +1,585 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Projectile Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a lab bench — the flight chamber dominates, controls sit beneath it, live readouts and worked SUVAT run down the right like a lab notebook. */
+:root{
+  --bg:#eaeef2; --surface:#ffffff; --surface-2:#f5f7f9; --fg:#14202b; --muted:#5a6b79; --line:#d3dbe2; --grid:#e3e8ed;
+  --accent:#d9480f; --vx:#1c66c9; --vy:#b0179a; --drag:#2b8a3e; --good:#2b8a3e; --bad:#c92a2a;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1319; --surface:#151e27; --surface-2:#1b2631; --fg:#e4ebf1; --muted:#93a4b3; --line:#2a3846; --grid:#1f2b37;
+  --accent:#ff7b3d; --vx:#5ea4ff; --vy:#e85bd3; --drag:#55cf6c; --good:#55cf6c; --bad:#ff6b6b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1319; --surface:#151e27; --surface-2:#1b2631; --fg:#e4ebf1; --muted:#93a4b3; --line:#2a3846; --grid:#1f2b37;
+  --accent:#ff7b3d; --vx:#5ea4ff; --vy:#e85bd3; --drag:#55cf6c; --good:#55cf6c; --bad:#ff6b6b; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1240px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:8px 24px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(1.9rem,4vw,2.7rem);line-height:1;margin:0;letter-spacing:-.02em;text-wrap:balance}
+h1 span{color:var(--accent)}
+.eyebrow{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.lede{margin:0;color:var(--muted);max-width:52ch}
+h2{font-family:var(--f-display);font-weight:600;font-size:1.15rem;margin:0;letter-spacing:-.01em}
+h3{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:20px;align-items:start}
+@media (max-width:960px){.bench{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.stage{overflow:hidden}
+.stage-top{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:.85rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+canvas{display:block;width:100%}
+#sim{height:clamp(260px,46vw,460px);background:var(--surface)}
+.transport{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);background:var(--surface-2)}
+.transport .scrub{flex:1 1 220px;display:flex;align-items:center;gap:10px;min-width:0}
+.transport output{font-family:var(--f-mono);font-size:.85rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+button,select{font:inherit;font-size:.92rem;color:var(--fg)}
+.btn{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:7px 13px;cursor:pointer;font-weight:600}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--vx);outline-offset:2px}
+select{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:6px 8px}
+
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px 24px;padding:18px 16px}
+.ctl{display:flex;flex-direction:column;gap:6px;min-width:0}
+.ctl label.name{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:600;font-size:.95rem}
+.ctl label.name em{font-style:normal;font-family:var(--f-mono);font-size:.78rem;color:var(--muted);font-weight:400}
+.ctl .row{display:flex;gap:10px;align-items:center}
+.ctl input[type=range]{flex:1;min-width:0;accent-color:var(--accent)}
+.ctl input[type=number]{width:78px;font-family:var(--f-mono);font-size:.9rem;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface-2);color:var(--fg);font-variant-numeric:tabular-nums}
+.checks{display:flex;flex-wrap:wrap;gap:8px 18px;padding:0 16px 16px;font-size:.95rem}
+.checks label{display:flex;gap:7px;align-items:center;cursor:pointer}
+.checks input{accent-color:var(--accent);width:16px;height:16px}
+.presets{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:14px 16px;border-top:1px solid var(--line)}
+.presets h3{margin-right:4px}
+
+.side{display:flex;flex-direction:column;gap:20px;min-width:0}
+.card{padding:16px;display:flex;flex-direction:column;gap:12px}
+.live{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.live div{background:var(--surface-2);border-radius:7px;padding:8px 10px;min-width:0}
+.live b{display:block;font-family:var(--f-mono);font-size:.7rem;font-weight:400;color:var(--muted)}
+.live span{font-family:var(--f-mono);font-size:1.02rem;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.live .cx span{color:var(--vx)} .live .cy span{color:var(--vy)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+thead th{font-family:var(--f-mono);font-size:.7rem;font-weight:400;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+td{font-family:var(--f-mono);font-size:.86rem}
+td:first-child{font-family:var(--f-body);font-size:.92rem}
+.col-drag{color:var(--drag)}
+.note{font-size:.85rem;color:var(--muted);margin:0}
+
+.working{font-size:.93rem;display:flex;flex-direction:column;gap:12px}
+.working .step{display:flex;flex-direction:column;gap:2px}
+.working .step p{margin:0}
+.working .eq{font-family:var(--f-mono);font-size:.82rem;background:var(--surface-2);padding:6px 8px;border-radius:6px;overflow-x:auto;white-space:nowrap}
+.working .eq .ans{color:var(--accent);font-weight:600}
+
+.lower{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:960px){.lower{grid-template-columns:minmax(0,1fr)}}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{background:transparent;border:1px solid var(--line);border-radius:999px;padding:4px 12px;cursor:pointer;font-family:var(--f-mono);font-size:.8rem}
+.tab[aria-pressed="true"]{background:var(--fg);color:var(--surface);border-color:var(--fg)}
+#graph{height:250px}
+.graph-cap{margin:0;font-size:.9rem;color:var(--muted)}
+
+.notice ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:8px;font-size:.95rem;max-width:65ch}
+.notice li::marker{color:var(--accent)}
+
+.q{display:flex;flex-direction:column;gap:12px}
+.q .prompt{margin:0;font-size:1.02rem;max-width:62ch}
+.q .ansrow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.q input{font-family:var(--f-mono);font-size:1rem;width:130px;padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:var(--surface-2);color:var(--fg)}
+.q .unit{font-family:var(--f-mono);color:var(--muted)}
+.verdict{font-weight:700;margin:0}
+.verdict.ok{color:var(--good)} .verdict.no{color:var(--bad)}
+.score{font-family:var(--f-mono);font-size:.8rem;color:var(--muted)}
+footer{font-size:.82rem;color:var(--muted);text-align:center}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Mechanics · Y12 A Level Physics · Oxford AQA</p>
+      <h1>Projectile <span>Lab</span></h1>
+    </div>
+    <p class="lede">Launch, pause and scrub through a flight. Horizontal and vertical motion are treated separately, exactly as you would in an exam answer.</p>
+  </header>
+
+  <div class="bench">
+    <section class="panel stage" aria-label="Simulation">
+      <div class="stage-top">
+        <h2>Flight chamber</h2>
+        <div class="legend" id="legend"></div>
+      </div>
+      <canvas id="sim" role="img" aria-label="Trajectory of the projectile"></canvas>
+      <div class="transport">
+        <button class="btn primary" id="play">Launch</button>
+        <button class="btn" id="reset">Reset</button>
+        <div class="scrub">
+          <input type="range" id="tScrub" min="0" max="1000" value="450" aria-label="Time through flight" style="flex:1;min-width:0;accent-color:var(--accent)">
+          <output id="tOut">t = 0.00 s</output>
+        </div>
+        <select id="rate" aria-label="Playback speed">
+          <option value="0.25">0.25× speed</option>
+          <option value="0.5">0.5× speed</option>
+          <option value="1" selected>1× real time</option>
+        </select>
+      </div>
+      <div class="controls">
+        <div class="ctl"><label class="name" for="u-r">Launch speed <em>u / m s⁻¹</em></label>
+          <div class="row"><input type="range" id="u-r" min="1" max="50" step="0.5"><input type="number" id="u-n" min="1" max="50" step="0.5" aria-label="Launch speed value"></div></div>
+        <div class="ctl"><label class="name" for="th-r">Launch angle <em>θ / °</em></label>
+          <div class="row"><input type="range" id="th-r" min="0" max="90" step="1"><input type="number" id="th-n" min="0" max="90" step="1" aria-label="Launch angle value"></div></div>
+        <div class="ctl"><label class="name" for="h-r">Launch height <em>h / m</em></label>
+          <div class="row"><input type="range" id="h-r" min="0" max="50" step="0.5"><input type="number" id="h-n" min="0" max="50" step="0.5" aria-label="Launch height value"></div></div>
+        <div class="ctl"><label class="name" for="g-s">Gravitational field <em>g / m s⁻²</em></label>
+          <select id="g-s">
+            <option value="9.81" selected>Earth, 9.81</option>
+            <option value="1.62">Moon, 1.62</option>
+            <option value="3.71">Mars, 3.71</option>
+            <option value="24.8">Jupiter, 24.8</option>
+          </select></div>
+        <div class="ctl" id="kCtl" hidden><label class="name" for="k-r">Drag strength <em>k/m / m⁻¹</em></label>
+          <div class="row"><input type="range" id="k-r" min="0.002" max="0.1" step="0.002"><input type="number" id="k-n" min="0.002" max="0.1" step="0.002" aria-label="Drag strength value"></div></div>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="c-comp" checked> Velocity components</label>
+        <label><input type="checkbox" id="c-strobe" checked> Strobe dots</label>
+        <label><input type="checkbox" id="c-marks" checked> Max height and range</label>
+        <label><input type="checkbox" id="c-drag"> Air resistance</label>
+      </div>
+      <div class="presets">
+        <h3>Try</h3>
+        <button class="btn" data-preset="comp">30° and 60°</button>
+        <button class="btn" data-preset="max">Which angle goes furthest?</button>
+        <button class="btn" data-preset="cliff">Horizontal launch from a cliff</button>
+        <button class="btn" data-preset="drag">Air resistance on vs off</button>
+        <button class="btn" id="keep">Keep this path</button>
+        <button class="btn" id="clear">Clear kept paths</button>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel card" aria-label="Live values">
+        <h3>At this instant</h3>
+        <div class="live">
+          <div><b>t / s</b><span id="lt">0</span></div>
+          <div><b>x / m</b><span id="lx">0</span></div>
+          <div><b>y / m</b><span id="ly">0</span></div>
+          <div class="cx"><b>vₓ / m s⁻¹</b><span id="lvx">0</span></div>
+          <div class="cy"><b>v_y / m s⁻¹</b><span id="lvy">0</span></div>
+          <div><b>|v| / m s⁻¹</b><span id="lv">0</span></div>
+        </div>
+      </section>
+      <section class="panel card" aria-label="Flight results">
+        <h3>Whole flight</h3>
+        <table>
+          <thead><tr><th>Quantity</th><th>No drag</th><th class="col-drag" id="dragHead" hidden>With drag</th></tr></thead>
+          <tbody id="results"></tbody>
+        </table>
+        <p class="note" id="resNote">Values assume no air resistance and uniform g.</p>
+      </section>
+    </aside>
+  </div>
+
+  <div class="lower">
+    <section class="panel card" aria-label="Worked SUVAT solution">
+      <h3>Worked solution for these values</h3>
+      <div class="working" id="working"></div>
+    </section>
+    <div class="side">
+      <section class="panel card" aria-label="Motion graphs">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center">
+          <h3>Motion graph</h3>
+          <div class="tabs" id="tabs">
+            <button class="tab" data-q="y" aria-pressed="true">y–t</button>
+            <button class="tab" data-q="vy" aria-pressed="false">v_y–t</button>
+            <button class="tab" data-q="vx" aria-pressed="false">vₓ–t</button>
+            <button class="tab" data-q="x" aria-pressed="false">x–t</button>
+          </div>
+        </div>
+        <canvas id="graph" role="img" aria-label="Motion graph"></canvas>
+        <p class="graph-cap" id="graphCap"></p>
+      </section>
+      <section class="panel card notice">
+        <h3>Things to notice</h3>
+        <ul>
+          <li>The strobe dots are evenly spaced horizontally. With no air resistance there is no horizontal force, so vₓ stays constant.</li>
+          <li>At the top of the flight v_y = 0, but the speed is not zero. The ball is still moving at vₓ.</li>
+          <li>The gradient of the v_y–t graph is −g for the whole flight, going up and coming down.</li>
+          <li>From level ground, 30° and 60° give the same range, and 45° gives the maximum. From a height, the best angle is below 45°.</li>
+          <li>Air resistance lowers the range and maximum height, makes the descent steeper than the ascent, and lowers the best angle.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel card q" aria-label="Practice question">
+    <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
+      <h2>Exam-style practice</h2>
+      <span class="score" id="score">0 / 0 correct</span>
+    </div>
+    <p class="prompt" id="qText"></p>
+    <form class="ansrow" id="qForm">
+      <label for="qAns" class="unit" style="color:var(--fg);font-family:var(--f-body);font-weight:600">Your answer</label>
+      <input id="qAns" inputmode="decimal" autocomplete="off" placeholder="e.g. 12.4">
+      <span class="unit" id="qUnit"></span>
+      <button class="btn primary" type="submit">Check</button>
+      <button class="btn" type="button" id="qShow">Show working</button>
+      <button class="btn" type="button" id="qLoad">Test it in the simulator</button>
+      <button class="btn" type="button" id="qNext">New question</button>
+    </form>
+    <p class="verdict" id="qVerdict" hidden></p>
+    <div class="working" id="qWork" hidden></div>
+    <p class="note">Use g = 9.81 m s⁻² and ignore air resistance. Answers within 2% count as correct.</p>
+  </section>
+
+  <footer>Model: uniform gravitational field. Air resistance uses a drag force proportional to v², so acceleration = −(k/m)|v|v.</footer>
+</div>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const S = {u:20, th:40, h:0, g:9.81, drag:false, k:0.02, t:0, playing:false, rate:1,
+           comp:true, strobe:true, marks:true, traces:[], q:'y'};
+let I, D, T;
+
+const deg = Math.PI/180;
+const f2 = v => (Math.abs(v) < 0.005 ? 0 : v).toFixed(2);
+const f3s = v => { if (!isFinite(v)) return '—'; const a=Math.abs(v); return a>=100? v.toFixed(1) : a>=10 ? v.toFixed(2) : v.toFixed(2); };
+
+function ideal(p){
+  const ux=p.u*Math.cos(p.th*deg), uy=p.u*Math.sin(p.th*deg), g=p.g;
+  const T=(uy+Math.sqrt(uy*uy+2*g*p.h))/g;
+  const vyI=uy-g*T;
+  return {ux,uy,T,tPeak:uy/g,H:p.h+uy*uy/(2*g),R:ux*T,vyI,vI:Math.hypot(ux,vyI),angI:Math.atan2(-vyI,ux)/deg};
+}
+function dragSim(p){
+  let x=0,y=p.h,vx=p.u*Math.cos(p.th*deg),vy=p.u*Math.sin(p.th*deg),t=0,H=y,tPeak=0;
+  const dt=0.002, k=p.k, g=p.g, pts=[{t,x,y,vx,vy}];
+  const a=(vx,vy)=>{const v=Math.hypot(vx,vy);return [-k*v*vx,-g-k*v*vy];};
+  for(let n=1;n<200000;n++){
+    const [a1x,a1y]=a(vx,vy);
+    const [a2x,a2y]=a(vx+a1x*dt/2,vy+a1y*dt/2);
+    const [a3x,a3y]=a(vx+a2x*dt/2,vy+a2y*dt/2);
+    const [a4x,a4y]=a(vx+a3x*dt,vy+a3y*dt);
+    const nx=x+dt*(vx+dt/6*(a1x+a2x+a3x)), ny=y+dt*(vy+dt/6*(a1y+a2y+a3y));
+    const nvx=vx+dt/6*(a1x+2*a2x+2*a3x+a4x), nvy=vy+dt/6*(a1y+2*a2y+2*a3y+a4y);
+    if(ny<0){
+      const fr=y>0? y/(y-ny):0;
+      x+= (nx-x)*fr; vx+=(nvx-vx)*fr; vy+=(nvy-vy)*fr; t+=dt*fr; y=0;
+      pts.push({t,x,y,vx,vy}); break;
+    }
+    x=nx;y=ny;vx=nvx;vy=nvy;t+=dt;
+    if(y>H){H=y;tPeak=t;}
+    if(n%5===0) pts.push({t,x,y,vx,vy});
+  }
+  return {pts,T:t,R:x,H,tPeak,vI:Math.hypot(vx,vy),angI:Math.atan2(-vy,vx)/deg};
+}
+function stateAt(t, useDrag){
+  if(useDrag && D){
+    const p=D.pts; if(t<=0) return p[0]; if(t>=D.T) return p[p.length-1];
+    let lo=0,hi=p.length-1; while(hi-lo>1){const m=(lo+hi)>>1; if(p[m].t<=t) lo=m; else hi=m;}
+    const A=p[lo],B=p[hi],f=(t-A.t)/((B.t-A.t)||1);
+    return {t,x:A.x+(B.x-A.x)*f,y:A.y+(B.y-A.y)*f,vx:A.vx+(B.vx-A.vx)*f,vy:A.vy+(B.vy-A.vy)*f};
+  }
+  return {t,x:I.ux*t,y:S.h+I.uy*t-0.5*S.g*t*t,vx:I.ux,vy:I.uy-S.g*t};
+}
+function recompute(keepFrac=true){
+  const frac = T>0 ? S.t/T : 0;
+  I=ideal(S); D=S.drag?dragSim(S):null; T=S.drag?D.T:I.T;
+  S.t = keepFrac ? Math.min(frac*T,T) : 0;
+  renderStatic(); draw();
+}
+
+/* ---------- colours ---------- */
+let C={};
+function readColors(){ const cs=getComputedStyle(document.documentElement);
+  ['surface','surface-2','fg','muted','line','grid','accent','vx','vy','drag'].forEach(k=>C[k]=cs.getPropertyValue('--'+k).trim()); }
+
+/* ---------- canvas helpers ---------- */
+function prep(cv){ const dpr=window.devicePixelRatio||1, w=cv.clientWidth, h=cv.clientHeight;
+  if(cv.width!==Math.round(w*dpr)||cv.height!==Math.round(h*dpr)){cv.width=Math.round(w*dpr);cv.height=Math.round(h*dpr);}
+  const c=cv.getContext('2d'); c.setTransform(dpr,0,0,dpr,0,0); c.clearRect(0,0,w,h); return [c,w,h]; }
+function nice(span){ const e=Math.pow(10,Math.floor(Math.log10(span))), m=span/e; return (m<1.5?1:m<3?2:m<7?5:10)*e; }
+function arrow(c,x1,y1,x2,y2,col,w=2.5){
+  const L=Math.hypot(x2-x1,y2-y1); if(L<3) return;
+  const a=Math.atan2(y2-y1,x2-x1), hl=Math.min(10,L*0.4);
+  c.strokeStyle=col;c.fillStyle=col;c.lineWidth=w;c.beginPath();c.moveTo(x1,y1);c.lineTo(x2-Math.cos(a)*hl*0.8,y2-Math.sin(a)*hl*0.8);c.stroke();
+  c.beginPath();c.moveTo(x2,y2);c.lineTo(x2-hl*Math.cos(a-0.4),y2-hl*Math.sin(a-0.4));c.lineTo(x2-hl*Math.cos(a+0.4),y2-hl*Math.sin(a+0.4));c.closePath();c.fill();
+}
+const MONO='11px "JetBrains Mono", ui-monospace, monospace';
+
+/* ---------- main drawing ---------- */
+function pathPts(fnT, Tend, n=160){ const a=[]; for(let i=0;i<=n;i++){a.push(fnT(Tend*i/n));} return a; }
+function draw(){
+  readColors();
+  const [c,w,h]=prep($('sim'));
+  const pl=46,pr=18,pt=18,pb=34;
+  let W=Math.max(I.R, D?D.R:0, 2), Hm=Math.max(I.H, D?D.H:0, S.h, 1);
+  S.traces.forEach(tr=>{W=Math.max(W,tr.R);Hm=Math.max(Hm,tr.H);});
+  const s=Math.min((w-pl-pr)/(W*1.06),(h-pt-pb)/(Hm*1.12));
+  const X=x=>pl+x*s, Y=y=>h-pb-y*s;
+  const vw=(w-pl-pr)/s, vh=(h-pt-pb)/s;
+  const step=nice(Math.max(vw,vh)/7);
+  // grid
+  c.lineWidth=1;c.strokeStyle=C.grid;c.font=MONO;c.fillStyle=C.muted;
+  c.textAlign='center';c.textBaseline='top';
+  for(let gx=0;gx<=vw+1e-9;gx+=step){c.beginPath();c.moveTo(X(gx)+.5,pt);c.lineTo(X(gx)+.5,h-pb);c.stroke();c.fillText(+gx.toFixed(3),X(gx),h-pb+6);}
+  c.textAlign='right';c.textBaseline='middle';
+  for(let gy=0;gy<=vh+1e-9;gy+=step){c.beginPath();c.moveTo(pl,Y(gy)+.5);c.lineTo(w-pr,Y(gy)+.5);c.stroke();if(gy>0)c.fillText(+gy.toFixed(3),pl-6,Y(gy));}
+  c.textAlign='left';c.textBaseline='top';c.fillText('m',w-pr-10,h-pb+6);
+  // ground
+  c.strokeStyle=C.muted;c.lineWidth=1.5;c.beginPath();c.moveTo(0,Y(0)+.5);c.lineTo(w,Y(0)+.5);c.stroke();
+  // platform
+  if(S.h>0){c.fillStyle=C.line;c.fillRect(X(0)-16,Y(S.h),16,Y(0)-Y(S.h));c.strokeStyle=C.muted;c.lineWidth=1;c.strokeRect(X(0)-16+.5,Y(S.h)+.5,15,Y(0)-Y(S.h));}
+  // kept traces
+  S.traces.forEach(tr=>{
+    c.setLineDash([2,4]);c.strokeStyle=C.muted;c.lineWidth=1.5;c.beginPath();
+    tr.pts.forEach((p,i)=>i?c.lineTo(X(p.x),Y(p.y)):c.moveTo(X(p.x),Y(p.y)));c.stroke();c.setLineDash([]);
+    const top=tr.pts.reduce((a,b)=>b.y>a.y?b:a);
+    c.fillStyle=C.muted;c.font=MONO;c.textAlign='center';c.textBaseline='bottom';c.fillText(tr.label,X(top.x),Y(top.y)-4);
+  });
+  // ideal path
+  const idealPts=pathPts(t=>stateAt(t,false),I.T);
+  const mainCol=S.drag?C.drag:C.accent;
+  if(S.drag){
+    c.setLineDash([6,5]);c.strokeStyle=C.accent;c.globalAlpha=.75;c.lineWidth=1.8;c.beginPath();
+    idealPts.forEach((p,i)=>i?c.lineTo(X(p.x),Y(p.y)):c.moveTo(X(p.x),Y(p.y)));c.stroke();c.setLineDash([]);c.globalAlpha=1;
+  }
+  // active path: faint full, strong flown
+  const act=S.drag?pathPts(t=>stateAt(t,true),D.T,240):idealPts;
+  c.strokeStyle=mainCol;c.globalAlpha=.28;c.lineWidth=2;c.beginPath();act.forEach((p,i)=>i?c.lineTo(X(p.x),Y(p.y)):c.moveTo(X(p.x),Y(p.y)));c.stroke();c.globalAlpha=1;
+  c.lineWidth=2.6;c.beginPath();
+  const nF=Math.max(2,Math.ceil(120*(T?S.t/T:0)));
+  for(let i=0;i<=nF;i++){const p=stateAt(S.t*i/nF,S.drag);i?c.lineTo(X(p.x),Y(p.y)):c.moveTo(X(p.x),Y(p.y));}
+  c.stroke();
+  // markers
+  const Hact=S.drag?D.H:I.H, Ract=S.drag?D.R:I.R;
+  if(S.marks && T>0){
+    const pk=stateAt(S.drag?D.tPeak:Math.max(I.tPeak,0),S.drag);
+    c.setLineDash([3,4]);c.strokeStyle=C.muted;c.lineWidth=1;
+    c.beginPath();c.moveTo(pl,Y(Hact)+.5);c.lineTo(X(pk.x)+40,Y(Hact)+.5);c.stroke();
+    c.beginPath();c.moveTo(X(pk.x)+.5,Y(Hact));c.lineTo(X(pk.x)+.5,Y(0));c.stroke();c.setLineDash([]);
+    c.fillStyle=C.fg;c.font='600 '+MONO;c.textAlign='left';c.textBaseline='bottom';
+    c.fillText('H = '+f2(Hact)+' m',X(pk.x)+6,Y(Hact)-4);
+    c.textAlign=X(Ract)>w-90?'right':'center';c.textBaseline='bottom';
+    c.fillText('R = '+f2(Ract)+' m',X(Ract),Y(0)-6);
+  }
+  // strobe
+  let dtS=0;
+  if(S.strobe && T>0){
+    dtS=nice(T/10); if(T/dtS>16) dtS*=2;
+    for(let ti=0;ti<=S.t+1e-9;ti+=dtS){
+      const p=stateAt(ti,S.drag);
+      c.fillStyle=mainCol;c.beginPath();c.arc(X(p.x),Y(p.y),3.2,0,7);c.fill();
+      c.strokeStyle=mainCol;c.lineWidth=1.5;c.beginPath();c.moveTo(X(p.x)+.5,Y(0)-5);c.lineTo(X(p.x)+.5,Y(0)+5);c.stroke();
+    }
+  }
+  // ball and vectors
+  const b=stateAt(S.t,S.drag), bx=X(b.x), by=Y(b.y);
+  if(S.comp){
+    const sc=Math.min(80,(h-pt-pb)*0.32)/S.u;
+    c.setLineDash([3,3]);c.strokeStyle=C.muted;c.lineWidth=1;
+    c.beginPath();c.moveTo(bx+b.vx*sc,by);c.lineTo(bx+b.vx*sc,by-b.vy*sc);c.lineTo(bx,by-b.vy*sc);c.stroke();c.setLineDash([]);
+    arrow(c,bx,by,bx+b.vx*sc,by,C.vx);
+    arrow(c,bx,by,bx,by-b.vy*sc,C.vy);
+    arrow(c,bx,by,bx+b.vx*sc,by-b.vy*sc,C.fg,2);
+  }
+  c.fillStyle=C.surface;c.strokeStyle=mainCol;c.lineWidth=3;c.beginPath();c.arc(bx,by,7,0,7);c.fill();c.stroke();
+  // legend + live
+  $('legend').innerHTML=
+    (S.drag?'<span><i style="background:'+C.drag+'"></i>With drag</span><span><i style="background:'+C.accent+'"></i>No drag</span>':'<span><i style="background:'+C.accent+'"></i>Trajectory</span>')+
+    (S.comp?'<span><i style="background:'+C.vx+'"></i>vₓ</span><span><i style="background:'+C.vy+'"></i>v_y</span><span><i style="background:'+C.fg+'"></i>v</span>':'')+
+    (S.strobe&&dtS?'<span>Dots every '+(+dtS.toFixed(3))+' s</span>':'');
+  $('lt').textContent=f2(S.t);$('lx').textContent=f2(b.x);$('ly').textContent=f2(b.y);
+  $('lvx').textContent=f2(b.vx);$('lvy').textContent=f2(b.vy);$('lv').textContent=f2(Math.hypot(b.vx,b.vy));
+  $('tOut').textContent='t = '+f2(S.t)+' s of '+f2(T)+' s';
+  if(!scrubbing) $('tScrub').value=T?Math.round(S.t/T*1000):0;
+  drawGraph();
+}
+
+/* ---------- graph ---------- */
+const QL={y:['y / m','Vertical displacement y'],vy:['v_y / m s⁻¹','Vertical velocity v_y'],vx:['vₓ / m s⁻¹','Horizontal velocity vₓ'],x:['x / m','Horizontal displacement x']};
+const CAP={
+  y:'A parabola: y changes with t² because the vertical acceleration is constant. The peak is where v_y = 0.',
+  vy:'A straight line with gradient −g. It crosses zero at the top of the flight. The area under it gives the vertical displacement.',
+  vx:'A horizontal line with no air resistance: no horizontal force means no horizontal acceleration. With drag, vₓ falls.',
+  x:'A straight line through the origin with no air resistance: gradient = uₓ. With drag, it curves as vₓ falls.'};
+function drawGraph(){
+  const [c,w,h]=prep($('graph'));
+  const pl=52,pr=14,pt=12,pb=30, q=S.q;
+  const Tm=Math.max(I.T, D?D.T:0, 0.01);
+  const sets=[{col:C.accent,f:t=>stateAt(Math.min(t,I.T),false)[q],Te:I.T}];
+  if(D) sets.push({col:C.drag,f:t=>stateAt(Math.min(t,D.T),true)[q],Te:D.T});
+  let lo=0,hi=0; sets.forEach(st=>{for(let i=0;i<=100;i++){const v=st.f(st.Te*i/100);lo=Math.min(lo,v);hi=Math.max(hi,v);}});
+  if(hi-lo<1e-6){hi+=1;}
+  const pad=(hi-lo)*0.08; lo-= lo<0?pad:0; hi+=pad;
+  const X=t=>pl+t/Tm*(w-pl-pr), Y=v=>pt+(hi-v)/(hi-lo)*(h-pt-pb);
+  c.font=MONO;c.lineWidth=1;
+  const ys=nice((hi-lo)/5), xs=nice(Tm/6);
+  c.textAlign='right';c.textBaseline='middle';
+  for(let v=Math.ceil(lo/ys)*ys;v<=hi;v+=ys){c.strokeStyle=C.grid;c.beginPath();c.moveTo(pl,Y(v)+.5);c.lineTo(w-pr,Y(v)+.5);c.stroke();c.fillStyle=C.muted;c.fillText(+v.toFixed(3),pl-6,Y(v));}
+  c.textAlign='center';c.textBaseline='top';
+  for(let t=0;t<=Tm+1e-9;t+=xs){c.strokeStyle=C.grid;c.beginPath();c.moveTo(X(t)+.5,pt);c.lineTo(X(t)+.5,h-pb);c.stroke();c.fillStyle=C.muted;c.fillText(+t.toFixed(3),X(t),h-pb+5);}
+  c.strokeStyle=C.muted;c.lineWidth=1.3;c.beginPath();c.moveTo(pl,Y(0)+.5);c.lineTo(w-pr,Y(0)+.5);c.moveTo(pl+.5,pt);c.lineTo(pl+.5,h-pb);c.stroke();
+  c.textAlign='right';c.textBaseline='top';c.fillStyle=C.muted;c.fillText('t / s',w-pr,h-pb+16>h-12?h-12:h-pb+16);
+  c.save();c.translate(12,pt+(h-pt-pb)/2);c.rotate(-Math.PI/2);c.textAlign='center';c.textBaseline='middle';c.fillText(QL[q][0],0,0);c.restore();
+  sets.forEach(st=>{c.strokeStyle=st.col;c.lineWidth=2.2;c.beginPath();for(let i=0;i<=150;i++){const t=st.Te*i/150;const v=st.f(t);i?c.lineTo(X(t),Y(v)):c.moveTo(X(t),Y(v));}c.stroke();});
+  const cur=stateAt(S.t,S.drag)[q];
+  c.strokeStyle=C.fg;c.setLineDash([3,3]);c.lineWidth=1;c.beginPath();c.moveTo(X(S.t)+.5,pt);c.lineTo(X(S.t)+.5,h-pb);c.stroke();c.setLineDash([]);
+  c.fillStyle=S.drag?C.drag:C.accent;c.beginPath();c.arc(X(S.t),Y(cur),5,0,7);c.fill();
+  if(q==='vy'){c.fillStyle=C.fg;c.font='600 '+MONO;c.textAlign='right';c.textBaseline='top';c.fillText('gradient = −'+S.g+' m s⁻²',w-pr-4,pt+4);}
+  $('graphCap').textContent=CAP[q];
+}
+
+/* ---------- static panels ---------- */
+function renderStatic(){
+  const rows=[
+    ['Time of flight / s',I.T,D&&D.T],['Max height above ground / m',I.H,D&&D.H],['Range / m',I.R,D&&D.R],
+    ['Impact speed / m s⁻¹',I.vI,D&&D.vI],['Impact angle below horizontal / °',I.angI,D&&D.angI]];
+  $('results').innerHTML=rows.map(r=>'<tr><td>'+r[0]+'</td><td>'+f3s(r[1])+'</td>'+(D?'<td class="col-drag">'+f3s(r[2])+'</td>':'')+'</tr>').join('');
+  $('dragHead').hidden=!D;
+  $('resNote').textContent=D?'Drag values come from a numerical model. There is no SUVAT shortcut once acceleration changes.':'Values assume no air resistance and uniform g.';
+  $('working').innerHTML=working(S);
+}
+function working(p){
+  const I=ideal(p), g=p.g, u=p.u, th=p.th, h=p.h;
+  const sq='√';
+  let html='';
+  const step=(title,eqs)=>html+='<div class="step"><p><strong>'+title+'</strong></p>'+eqs.map(e=>'<div class="eq">'+e+'</div>').join('')+'</div>';
+  step('1. Resolve the launch velocity',[
+    'uₓ = u cos θ = '+u+' × cos '+th+'° = <span class="ans">'+f2(I.ux)+' m s⁻¹</span>',
+    'u_y = u sin θ = '+u+' × sin '+th+'° = <span class="ans">'+f2(I.uy)+' m s⁻¹</span>']);
+  step('2. Time of flight (vertical, a = −g)',[
+    's = ut + ½at² with s = −'+h+' m:',
+    h>0? '−'+h+' = '+f2(I.uy)+'t − ½('+g+')t²  →  '+(g/2).toFixed(3)+'t² − '+f2(I.uy)+'t − '+h+' = 0'
+       : '0 = '+f2(I.uy)+'t − ½('+g+')t²  →  t = 2u_y / g',
+    't = <span class="ans">'+f2(I.T)+' s</span>'+(h>0?'  (positive root of the quadratic)':'')]);
+  step('3. Maximum height (v_y = 0 at the top)',[
+    'v² = u² + 2as  →  0 = '+f2(I.uy)+'² − 2('+g+')s',
+    's = u_y² / 2g = '+f2(I.uy*I.uy/(2*g))+' m'+(h>0?'  →  height above ground = '+h+' + '+f2(I.uy*I.uy/(2*g)):'')+' = <span class="ans">'+f2(I.H)+' m</span>']);
+  step('4. Range (horizontal, a = 0)',[
+    'x = uₓt = '+f2(I.ux)+' × '+f2(I.T)+' = <span class="ans">'+f2(I.R)+' m</span>']);
+  step('5. Velocity on impact',[
+    'v_y = u_y − gt = '+f2(I.uy)+' − '+g+' × '+f2(I.T)+' = '+f2(I.vyI)+' m s⁻¹',
+    'v = '+sq+'(uₓ² + v_y²) = <span class="ans">'+f2(I.vI)+' m s⁻¹</span> at tan⁻¹('+f2(Math.abs(I.vyI))+' / '+f2(I.ux)+') = <span class="ans">'+f2(I.angI)+'°</span> below horizontal']);
+  return html;
+}
+
+/* ---------- controls ---------- */
+const pairs=[['u','u'],['th','th'],['h','h'],['k','k']];
+function syncInputs(){pairs.forEach(([id,key])=>{$(id+'-r').value=S[key];$(id+'-n').value=S[key];});
+  $('g-s').value=String(S.g);$('c-drag').checked=S.drag;$('kCtl').hidden=!S.drag;}
+pairs.forEach(([id,key])=>{
+  const r=$(id+'-r'),n=$(id+'-n');
+  r.addEventListener('input',()=>{S[key]=+r.value;n.value=r.value;stop();recompute();});
+  n.addEventListener('change',()=>{let v=+n.value;if(!isFinite(v))v=S[key];v=Math.min(+n.max,Math.max(+n.min,v));S[key]=v;n.value=v;r.value=v;stop();recompute();});
+});
+$('g-s').addEventListener('change',e=>{S.g=+e.target.value;stop();recompute();});
+$('c-comp').addEventListener('change',e=>{S.comp=e.target.checked;draw();});
+$('c-strobe').addEventListener('change',e=>{S.strobe=e.target.checked;draw();});
+$('c-marks').addEventListener('change',e=>{S.marks=e.target.checked;draw();});
+$('c-drag').addEventListener('change',e=>{S.drag=e.target.checked;$('kCtl').hidden=!S.drag;stop();recompute();});
+$('rate').addEventListener('change',e=>S.rate=+e.target.value);
+
+let scrubbing=false;
+$('tScrub').addEventListener('input',e=>{scrubbing=true;stop();S.t=T*(+e.target.value)/1000;draw();scrubbing=false;});
+
+let last=0, raf=0;
+function tick(ts){
+  if(!S.playing) return;
+  const dt=last?(ts-last)/1000:0; last=ts;
+  S.t=Math.min(T,S.t+dt*S.rate);
+  draw();
+  if(S.t>=T){stop();return;}
+  raf=requestAnimationFrame(tick);
+}
+function play(){ if(S.t>=T-1e-6) S.t=0; S.playing=true; last=0; $('play').textContent='Pause'; raf=requestAnimationFrame(tick); }
+function stop(){ S.playing=false; cancelAnimationFrame(raf); $('play').textContent=S.t>0&&S.t<T?'Resume':'Launch'; }
+$('play').addEventListener('click',()=>S.playing?stop():play());
+$('reset').addEventListener('click',()=>{stop();S.t=0;$('play').textContent='Launch';draw();});
+
+function snapshot(label){
+  const pts=S.drag?D.pts.filter((_,i)=>i%4===0).concat([D.pts[D.pts.length-1]]):pathPts(t=>stateAt(t,false),I.T,120);
+  return {pts,R:S.drag?D.R:I.R,H:S.drag?D.H:I.H,label:label||(S.th+'°, '+S.u+' m s⁻¹'+(S.drag?', drag':''))};
+}
+$('keep').addEventListener('click',()=>{S.traces.push(snapshot());if(S.traces.length>8)S.traces.shift();draw();});
+$('clear').addEventListener('click',()=>{S.traces=[];draw();});
+
+const PRE={
+  comp:()=>{S.traces=[];Object.assign(S,{u:20,h:0,g:9.81,drag:false,th:30});recompute(false);S.traces.push(snapshot('30°'));S.th=60;recompute(false);S.t=T;},
+  max:()=>{S.traces=[];Object.assign(S,{u:20,h:0,g:9.81,drag:false});[15,30,60,75].forEach(a=>{S.th=a;recompute(false);S.traces.push(snapshot(a+'°'));});S.th=45;recompute(false);S.t=T;},
+  cliff:()=>{S.traces=[];Object.assign(S,{u:12,th:0,h:30,g:9.81,drag:false});recompute(false);S.t=T*0.6;},
+  drag:()=>{S.traces=[];Object.assign(S,{u:35,th:45,h:0,g:9.81,drag:true,k:0.02});recompute(false);S.t=T;}
+};
+document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{stop();PRE[b.dataset.preset]();syncInputs();renderStatic();draw();$('play').textContent='Launch';}));
+
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
+  S.q=b.dataset.q;document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));drawGraph();}));
+
+/* ---------- practice ---------- */
+let Q=null, right=0, tries=0, answered=false;
+const rnd=(a,b,st=1)=>Math.round((a+Math.random()*(b-a))/st)*st;
+function newQ(){
+  const type=['range','tof','height','cliffDist','impact','cliffAngled'][Math.floor(Math.random()*6)];
+  let p={g:9.81,drag:false,k:0},text,ask,unit;
+  if(type==='range'){p.u=rnd(10,30);p.th=rnd(20,70,5);p.h=0;
+    text=`A ball is kicked from level ground at ${p.u} m s⁻¹ at ${p.th}° above the horizontal. Calculate the horizontal distance it travels before landing.`;ask='R';unit='m';}
+  else if(type==='tof'){p.u=rnd(8,25);p.th=rnd(25,75,5);p.h=0;
+    text=`A golf ball is struck from level ground at ${p.u} m s⁻¹ at ${p.th}° to the horizontal. Calculate the time it spends in the air.`;ask='T';unit='s';}
+  else if(type==='height'){p.u=rnd(10,30);p.th=rnd(30,75,5);p.h=rnd(1,3,0.5);
+    text=`A javelin is released ${p.h} m above the ground at ${p.u} m s⁻¹ at ${p.th}° above the horizontal. Calculate its maximum height above the ground.`;ask='H';unit='m';}
+  else if(type==='cliffDist'){p.u=rnd(5,20);p.th=0;p.h=rnd(10,50,5);
+    text=`A stone is thrown horizontally at ${p.u} m s⁻¹ from the top of a cliff ${p.h} m high. Calculate how far from the base of the cliff it lands.`;ask='R';unit='m';}
+  else if(type==='impact'){p.u=rnd(6,18);p.th=0;p.h=rnd(10,40,5);
+    text=`A parcel is pushed horizontally off a ledge ${p.h} m high at ${p.u} m s⁻¹. Calculate its speed just before it hits the ground.`;ask='vI';unit='m s⁻¹';}
+  else {p.u=rnd(10,25);p.th=rnd(20,50,5);p.h=rnd(10,30,5);
+    text=`A ball is thrown at ${p.u} m s⁻¹ at ${p.th}° above the horizontal from the edge of a cliff ${p.h} m high. Calculate the time taken to reach the ground below.`;ask='T';unit='s';}
+  Q={p,ask,ans:ideal(p)[ask]};answered=false;
+  $('qText').textContent=text;$('qUnit').textContent=unit;$('qAns').value='';
+  $('qVerdict').hidden=true;$('qWork').hidden=true;
+}
+$('qForm').addEventListener('submit',e=>{e.preventDefault();
+  const v=parseFloat($('qAns').value.replace(',','.'));
+  const vd=$('qVerdict');vd.hidden=false;
+  if(!isFinite(v)){vd.className='verdict no';vd.textContent='Enter a number, without units.';return;}
+  const ok=Math.abs(v-Q.ans)<=Math.max(0.02*Math.abs(Q.ans),0.01);
+  if(!answered){tries++;if(ok)right++;answered=true;}
+  $('score').textContent=right+' / '+tries+' correct';
+  vd.className='verdict '+(ok?'ok':'no');
+  vd.textContent=ok?`Correct: ${f2(Q.ans)} ${$('qUnit').textContent}.`:`Not quite. Check your components and signs, then try again or show the working.`;
+});
+$('qShow').addEventListener('click',()=>{$('qWork').innerHTML=working(Q.p);$('qWork').hidden=false;});
+$('qLoad').addEventListener('click',()=>{stop();S.traces=[];Object.assign(S,Q.p,{drag:false});syncInputs();recompute(false);S.t=0;draw();
+  $('sim').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'center'});play();});
+$('qNext').addEventListener('click',newQ);
+
+/* ---------- boot ---------- */
+syncInputs();
+I=ideal(S);D=null;T=I.T;S.t=T*0.38;
+renderStatic();newQ();
+const redraw=()=>{draw();};
+window.addEventListener('resize',redraw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',redraw);
+new MutationObserver(redraw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+document.fonts && document.fonts.ready.then(redraw);
+draw();
+})();
+</script>
+
+</body></html>
